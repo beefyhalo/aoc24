@@ -1,0 +1,7 @@
+{
+  "editor.tabSize": 2,
+  "editor.fontLigatures": true,
+  "editor.fontFamily": "SourceCodePro, Consolas,  'Courier New', monospace",
+  "editor.fontWeight": "bold",
+  "terminal.integrated.fontWeight": "bold"
+}
