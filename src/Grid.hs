@@ -6,7 +6,6 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -17,15 +16,14 @@ import Control.Arrow ((***))
 import Control.Comonad (Comonad, duplicate, extend, extract)
 import Control.Comonad.Identity (Identity (Identity))
 import Control.Comonad.Representable.Store (ComonadStore, Store, StoreT (StoreT), pos, runStore, seek, store)
-import Control.Lens (from, (&), (.~))
 import Data.Array.IArray (Array, array, (!))
 import Data.Bitraversable (bitraverse)
 import Data.Coerce (coerce)
-import Data.Distributive (Distributive (..))
 import Data.Finite (Finite, getFinite, packFinite)
+import Data.Foldable (fold)
 import Data.Functor.Compose (Compose (getCompose))
-import Data.Functor.Rep (Representable (..), distributeRep, tabulated)
 import Data.List (unfoldr)
+import Data.Map.Strict qualified as Map
 import Data.Maybe (catMaybes)
 import Data.Vector.Sized qualified as V
 import GHC.Generics (Generic, Generic1)
@@ -68,10 +66,13 @@ below = (`plus'` south)
 right = (`plus'` east)
 
 -- | These wrap around -- TODO Num instance for Coord n
-above', below', left', right' :: (KnownNat n, KnownNat m) => Coord' n m -> Coord' n m
+above', below' :: (KnownNat n) => Coord' n m -> Coord' n m
+left', right' :: (KnownNat m) => Coord' n m -> Coord' n m
 above' (y, x) = (y - 1, x)
 below' (y, x) = (y + 1, x)
+
 left' (y, x) = (y, x - 1)
+
 right' (y, x) = (y, x + 1)
 
 plus :: (KnownNat n, KnownNat m) => Coord' n m -> Coord' n m -> Maybe (Coord' n m)
@@ -109,6 +110,9 @@ newtype Grid' (n :: Nat) (m :: Nat) a = G {unGrid :: Store (GridF' n m) a}
   deriving (Functor, ComonadStore (Coord' n m)) via (Store (GridF' n m))
   deriving (Generic, Generic1)
 
+instance (Show a) => Show (Grid' n m a) where
+  show = preview
+
 instance Foldable (Grid' n m) where
   foldMap f (unwrap . unGrid -> g) = foldMap f g
 
@@ -119,27 +123,35 @@ instance (KnownNat n, KnownNat m) => Comonad (Grid' n m) where
   extract (G g) = extract g
   duplicate (G g) = coerce (coerce <$> duplicate g)
 
-fromArray :: (KnownNat n) => Array (Int, Int) a -> Grid n a
+fromArray :: (KnownNat n, KnownNat m) => Array (Int, Int) a -> Grid' n m a
 fromArray = (`fromArray'` origin)
 
-fromArray' :: (KnownNat n) => Array (Int, Int) a -> Coord n -> Grid n a
+fromArray' :: (KnownNat n, KnownNat m) => Array (Int, Int) a -> Coord' n m -> Grid' n m a
 fromArray' arr = G . store ((arr !) . (fromIntegral *** fromIntegral))
 
-(!?) :: (KnownNat n, KnownNat m) => Grid' n m a -> V2 Integer -> Maybe a
-(!?) g = fmap extract . move' g
+fromMap :: (KnownNat n, KnownNat m, Monoid a) => Map.Map (Coord' n m) a -> Grid' n m a
+fromMap m = G $ store (fold . (m Map.!?)) origin
 
+(!?) :: (KnownNat n, KnownNat m) => Grid' n m a -> Coord' n m -> Maybe a
+(!?) g = fmap extract . move g
+
+(!??) :: (KnownNat n, KnownNat m) => Grid' n m a -> V2 Integer -> Maybe a
+(!??) g = fmap extract . move' g
+
+-- seeks to the current position plus Coord' n m
 move :: (KnownNat n, KnownNat m) => Grid' n m a -> Coord' n m -> Maybe (Grid' n m a)
 move g (getFinite -> y, getFinite -> x) = move' g (V2 y x)
 
+-- seeks to the current position plus V2 Integer
 move' :: (KnownNat n, KnownNat m) => Grid' n m a -> V2 Integer -> Maybe (Grid' n m a)
 move' g = fmap (`seek` g) . plus' (pos g)
 
 -- TODO I think the better way is to use the [[Data.Functor.Rep.tabulated]] lens
 update :: (KnownNat n, KnownNat m) => Coord' n m -> a -> Grid' n m a -> Grid' n m a
-update c = modify ((c ==) . pos)
+update c = modify (c ==)
 
-modify :: forall n m a. (KnownNat n, KnownNat m) => (Grid' n m a -> Bool) -> a -> Grid' n m a -> Grid' n m a
-modify f a = extend (\g -> if f g then a else extract g)
+modify :: (KnownNat n, KnownNat m) => (Coord' n m -> Bool) -> a -> Grid' n m a -> Grid' n m a
+modify f a (runStore . unGrid -> (s, i)) = G $ store (\c -> if f c then a else s c) i -- extend (\g -> if f g then a else extract g)
 
 preview :: (Show a) => Grid' n m a -> String
 preview = render (const show)

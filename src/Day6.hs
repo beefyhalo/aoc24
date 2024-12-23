@@ -24,7 +24,7 @@ import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import GHC.IO (unsafePerformIO)
 import GHC.TypeLits (KnownNat)
-import Grid (Coord, Grid, fromArray', move', north, render, toArray, turnRight, update, (!?))
+import Grid (Coord, Grid, fromArray', move', north, render, toArray, turnRight, update, (!??))
 import Linear (V2)
 
 data Space = Empty | Obstacle | Guard | Circle deriving (Eq)
@@ -40,14 +40,14 @@ type Input n = Grid n Space
 
 step :: forall n. (KnownNat n) => Grid n Space -> State (V2 Integer) (Maybe (Grid n Space))
 step g = do
-  space <- gets (g !?)
+  space <- gets (g !??)
   when (space == Just Obstacle || space == Just Circle) $ modify turnRight
   gets nextGrid
   where
     -- Instead of just moving one step, keep moving in the same direction until we hit a boulder
     -- TODO this can prob be whileJust/unfoldrM'
     nextGrid :: V2 Integer -> Maybe (Grid n Space)
-    nextGrid d = case g !? d of
+    nextGrid d = case g !?? d of
       space | space == Just Obstacle || space == Just Circle -> Just g
       Just _ -> move' g d
       _ -> Nothing
