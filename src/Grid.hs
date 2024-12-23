@@ -9,6 +9,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Grid (module Grid) where
 
@@ -86,6 +87,9 @@ zipWith f c (getFinite -> y2, getFinite -> x2) = zipWith' f c (V2 y2 x2)
 
 zipWith' :: (KnownNat n, KnownNat m) => (Integer -> Integer -> Integer) -> Coord' n m -> V2 Integer -> Maybe (Coord' n m)
 zipWith' f (getFinite -> y1, getFinite -> x1) (V2 y2 x2) = fromPair (f y1 y2, f x1 x2)
+
+zipCoord :: (KnownNat n, KnownNat m) => (Integer -> Integer -> Integer) -> Coord' n m -> Coord' n m -> Coord' n m
+zipCoord f (getFinite -> y1, getFinite -> x1) (getFinite -> y2, getFinite -> x2) = (fromIntegral $ f y1 y2, fromIntegral $ f x1 x2)
 
 colines :: (KnownNat n, KnownNat m) => [Coord' n m] -> [Coord' n m]
 colines coords = concat [colinear x y | x <- coords, y <- coords, x /= y]
