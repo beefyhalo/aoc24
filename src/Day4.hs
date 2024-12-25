@@ -1,6 +1,5 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Day4 (module Day4) where
 
@@ -9,14 +8,14 @@ import Control.Comonad.Representable.Store (ComonadStore (experiment))
 import Data.Attoparsec.ByteString (Parser, choice, many1, sepBy)
 import Data.Attoparsec.ByteString.Char8 (char, endOfLine)
 import Data.Bool (bool)
-import Data.Finite (getFinite)
 import Data.Functor.Compose (Compose (..))
 import Data.Functor.Product (Product (..))
 import Data.Maybe (mapMaybe)
 import GHC.TypeLits (KnownNat)
-import Grid (Coord, Grid, fromArray, fromPair, toArray)
+import Grid (Coord, Grid, above, below, fromArray, left, plus, right, toArray)
+import Linear.V2 (V2 (V2))
 
-data C = X | M | A | S
+data Cell = X | M | A | S
   deriving (Eq, Show)
 
 data Three a = Three a a a
@@ -24,26 +23,27 @@ data Three a = Three a a a
 
 type Context a = Compose [] Three a
 
-type Input n = Grid n C
+type Input n = Grid n Cell
 
 solution :: forall n. (KnownNat n) => Input n -> Int
 solution = sum . fmap occurences . applyContext
   where
-    applyContext :: Grid n C -> Grid n (Context C)
+    applyContext :: Grid n Cell -> Grid n (Context Cell)
     applyContext = extend (\s -> if extract s == X then experiment context s else mempty)
       where
         context :: Coord n -> Context (Coord n)
-        context (getFinite -> x, getFinite -> y) =
+        context i =
           Compose $
-            mapMaybe -- TODO Refactor Use functions from Coord
-              (traverse fromPair)
-              [ Three (x + dx, y + dy) (x + dx + dx, y + dy + dy) (x + dx + dx + dx, y + dy + dy + dy)
-                | dx <- [-1 .. 1],
-                  dy <- [-1 .. 1],
-                  (dx, dy) /= (0, 0)
+            mapMaybe
+              sequence
+              [ Three (i `plus` j) (plus i (j * 2)) (plus i (j * 3))
+                | dy <- [-1 .. 1],
+                  dx <- [-1 .. 1],
+                  (dy, dx) /= (0, 0),
+                  let j = V2 dy dx
               ]
 
-    occurences :: Context C -> Int
+    occurences :: Context Cell -> Int
     occurences = length . filter (== Three M A S) . getCompose
 
 data Two a = Two a a
@@ -54,16 +54,16 @@ type Context' a = Compose Maybe (Product Two Two) a
 partTwo :: forall n. (KnownNat n) => Input n -> Int
 partTwo = sum . fmap (bool 0 1 . isXmas) . applyContext
   where
-    applyContext :: Grid n C -> Grid n (Context' C)
+    applyContext :: Grid n Cell -> Grid n (Context' Cell)
     applyContext = extend (\s -> if extract s == A then experiment context s else Compose Nothing)
       where
         context :: Coord n -> Context' (Coord n)
-        context (getFinite -> x, getFinite -> y) =
+        context i =
           Compose $
-            traverse fromPair $ -- TODO Refactor Use functions from Coord
-              Pair (Two (x - 1, y + 1) (x + 1, y - 1)) (Two (x - 1, y - 1) (x + 1, y + 1))
+            sequence $
+              Pair (Two (below =<< left i) (above =<< right i)) (Two (above =<< left i) (below =<< right i))
 
-    isXmas :: Context' C -> Bool
+    isXmas :: Context' Cell -> Bool
     isXmas (Compose (Just (Pair l r))) = let isMS = (`elem` [Two M S, Two S M]) in isMS l && isMS r
     isXmas _ = False
 

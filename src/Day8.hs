@@ -3,20 +3,17 @@
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Day8 (module Day8) where
 
-import Control.Comonad.Representable.Store (peek, pos)
 import Data.Attoparsec.ByteString (Parser, choice, many1)
 import Data.Attoparsec.ByteString.Char8 (char, endOfLine, satisfy, sepBy)
-import Data.Foldable (Foldable (..))
-import Data.Functor.Rep (tabulate)
+import Data.Foldable.WithIndex (FoldableWithIndex (ifoldMap))
 import Data.Map.Monoidal qualified as Map
 import Data.Set qualified as Set
 import GHC.IO (unsafePerformIO)
 import GHC.TypeLits (KnownNat)
-import Grid (Coord, Grid, GridF, colines, fromArray, modify, render, toArray)
+import Grid (Coord, Grid, colines, fromArray, modify, render, toArray)
 
 data Space = Empty | Antenna Char | Antinode deriving (Eq, Ord)
 
@@ -32,11 +29,11 @@ antinodes :: forall n. (KnownNat n) => Grid n Space -> [[Coord n]]
 antinodes g = colines <$> antennae
   where
     antennae :: [[Coord n]]
-    antennae = Map.elems . fold $ tabulate @(GridF n) \c -> case peek c g of
+    antennae = Map.elems $ flip ifoldMap g \c -> \case
       a@(Antenna _) -> Map.singleton a [c]
       _ -> mempty
 
-placeAntinodes :: (KnownNat n) => Set.Set (Coord n) -> Grid n Space -> Grid n Space
+placeAntinodes :: Set.Set (Coord n) -> Grid n Space -> Grid n Space
 placeAntinodes locs = modify (`Set.member` locs) Antinode
 
 solution :: (KnownNat n) => Input n -> Int

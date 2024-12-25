@@ -26,7 +26,7 @@ solution :: forall n. (KnownNat n) => Input n -> Int
 solution = score . positions . trails
   where
     positions :: Grid n [Grid n Pos] -> Grid n (Set.Set (Coord n))
-    positions = fmap (Set.fromList . fmap pos)
+    positions = fmap (foldMap (Set.singleton . pos))
 
     score :: Grid n (Set.Set (Coord n)) -> Int
     score = sum . fmap length
@@ -37,22 +37,22 @@ partTwo = sum . positions . trails
     positions :: Grid n [Grid n Pos] -> Grid n Int
     positions = fmap length
 
-trails :: (KnownNat n) => Grid n Pos -> Grid n [Grid n Pos]
+trails :: forall n. (KnownNat n) => Grid n Pos -> Grid n [Grid n Pos]
 trails = extend trail
-
-trail :: (KnownNat n) => Grid n Pos -> [Grid n Pos]
-trail g
-  | extract g == H 0 = iterateUntilM ((== H 9) . extract) step g
-  | otherwise = []
-
-step :: (KnownNat n) => Grid n Pos -> [Grid n Pos]
-step g
-  | H h <- extract g = [next | c <- cardinal (pos g), let next = seek c g, isNext h next]
-  | otherwise = []
   where
-    isNext h g'
-      | H h' <- extract g' = h + 1 == h'
-      | otherwise = False
+    trail :: Grid n Pos -> [Grid n Pos]
+    trail g
+      | extract g == H 0 = iterateUntilM ((== H 9) . extract) step g
+      | otherwise = []
+
+    step :: Grid n Pos -> [Grid n Pos]
+    step g
+      | H h <- extract g = [next | c <- cardinal (pos g), let next = seek c g, isNext h next]
+      | otherwise = []
+      where
+        isNext h g'
+          | H h' <- extract g' = h + 1 == h'
+          | otherwise = False
 
 parser :: (KnownNat n) => Parser (Input n)
 parser = fromArray . toArray <$> many1 hParser `sepBy` endOfLine

@@ -61,7 +61,7 @@ solution g = sum $ uncurry (*) <$> rs
     !_ = unsafePerformIO $ putStrLn $ preview es
     rs = [(length r, sum $ (`peek` es) <$> Set.toList r) | r <- regions g]
 
-countCorners :: forall n. (KnownNat n) => Set.Set (Coord n) -> Int
+countCorners :: forall n. KnownNat n => Set.Set (Coord n) -> Int
 countCorners coords = sum [corners c | c <- Set.toList coords, isBoundary c]
   where
     isBoundary :: Coord n -> Bool

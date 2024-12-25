@@ -40,5 +40,5 @@ parser = do
   updates <- updateParser `sepBy` endOfLine
   pure $ Input (Set.fromList rules) updates
   where
-    ruleParser = Before <$> decimal <* char '|' <*> decimal
+    ruleParser = liftA2 Before (decimal <* char '|') decimal
     updateParser = decimal `sepBy` char ','
