@@ -24,7 +24,7 @@ import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import GHC.IO (unsafePerformIO)
 import GHC.TypeLits (KnownNat)
-import Grid (Coord, Grid, fromArray', move, north, render, toArray, turnRight, update, (!?), Coord' (C))
+import Grid (Coord, Grid, fromArray', move, north, render, toArray, turnRight, update, (!?))
 import Linear (V2)
 
 data Space = Empty | Obstacle | Guard | Circle deriving (Eq)
@@ -111,6 +111,6 @@ parser = uncurry fromArray' . toInput . toArray <$> many1 spaceParser `sepBy` en
     spaceParser = choice [Empty <$ char '.', Obstacle <$ char '#', Guard <$ char '^']
 
     toInput :: Array (Int, Int) Space -> (Array (Int, Int) Space, Coord n)
-    toInput arr = (arr, C $ fromIntegral *** fromIntegral $ guardCoord)
+    toInput arr = (arr, fromIntegral *** fromIntegral $ guardCoord)
       where
         guardCoord = fst . fromJust $ ifind (const (== Guard)) arr

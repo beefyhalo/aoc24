@@ -29,6 +29,7 @@ dependencies:
 - bytestring
 - monad-loops
 - comonad
+- vector
 - MemoTrie
 - free
 - containers

@@ -25,7 +25,7 @@ import Data.Vector.Sized qualified as V
 import Debug.Trace (traceShowId)
 import GHC.TypeNats (KnownNat)
 import GHC.TypeNats qualified
-import Grid (Coord, Coord' (C), Grid, Grid' (G), east, fromArray', left, move, north, plus, right, south, toArray, unwrap, update, west)
+import Grid (Coord, Coord', Grid, Grid' (G), east, fromArray', left, move, north, plus, right, south, toArray, unwrap, update, west)
 import Linear (V2)
 
 data Space = Empty | Box | BoxOpen | BoxClose | Wall | Player deriving (Eq)
@@ -56,7 +56,7 @@ findNextFreeSpace :: (KnownNat n, KnownNat m) => V2 Integer -> Coord' n m -> Gri
 findNextFreeSpace dir i grid =
   case peek i grid of
     Empty -> Just i -- Found free space
-    Box -> findNextFreeSpace dir (fromIntegral $ fromIntegral i + dir) grid -- Keep going
+    Box | Just j <- i `plus` dir -> findNextFreeSpace dir j grid -- Keep going
     _ -> Nothing -- Obstruction (Wall or out of bounds)
 
 solution :: (KnownNat n) => Input n -> Int
@@ -64,7 +64,7 @@ solution (g, dirs) = sum $ score <<= foldl' step g dirs
 
 score :: (KnownNat n, KnownNat m) => Grid' n m Space -> Int
 score g = case extract g of
-  b | b `elem` [Box, BoxOpen] -> let C (fromIntegral -> y, fromIntegral -> x) = pos g in 100 * y + x
+  b | b `elem` [Box, BoxOpen] -> let (fromIntegral -> y, fromIntegral -> x) = pos g in 100 * y + x
   _ -> 0
 
 spacesToMove :: (KnownNat n, KnownNat m) => V2 Integer -> Grid' n m Space -> Maybe (Set.Set (Coord' n m))
@@ -95,7 +95,7 @@ step2 grid dir = traceShowId $ case move grid dir of
   where
     movePlayer g = replaceSpace (pos grid) (pos g) Player g
 
-replaceSpace :: Coord' n m -> Coord' n m -> Space -> Grid' n m Space -> Grid' n m Space
+replaceSpace :: (KnownNat n, KnownNat m) => Coord' n m -> Coord' n m -> Space -> Grid' n m Space -> Grid' n m Space
 replaceSpace i j s = update i Empty . update j s
 
 partTwo :: (KnownNat n, KnownNat (n GHC.TypeNats.* 2)) => Input n -> Int
@@ -103,10 +103,10 @@ partTwo (g, dirs) = sum $ score <<= foldl' step2 (expand g) (take 4 dirs)
 
 expand :: (KnownNat n, KnownNat (n GHC.TypeNats.* 2)) => Grid n Space -> Grid' n (n GHC.TypeNats.* 2) Space
 expand g =
-  let v = fmap (V.concatMap expandCell) (unwrap g)
-   in G $ store (\(C (y, x)) -> v `V.index` y `V.index` x) start
+  let v = V.concatMap expandCell <$> unwrap g
+   in G $ store (uncurry (V.index . V.index v)) start
   where
-    start = let C (y, getFinite -> x) = pos g in C (y, finite $ x * 2)
+    start = let (y, getFinite -> x) = pos g in (y, finite $ x * 2)
     expandCell :: Space -> V.Vector 2 Space
     expandCell = \case
       Empty -> V.fromTuple (Empty, Empty)

@@ -33,7 +33,7 @@ antinodes g = colines <$> antennae
       a@(Antenna _) -> Map.singleton a [c]
       _ -> mempty
 
-placeAntinodes :: Set.Set (Coord n) -> Grid n Space -> Grid n Space
+placeAntinodes :: (KnownNat n) => Set.Set (Coord n) -> Grid n Space -> Grid n Space
 placeAntinodes locs = modify (`Set.member` locs) Antinode
 
 solution :: (KnownNat n) => Input n -> Int

@@ -14,6 +14,7 @@
 
 module Day14 (module Day14) where
 
+import Control.Arrow ((***))
 import Control.Comonad (extend, extract)
 import Control.Comonad.Representable.Store (peek, pos, store)
 import Control.Lens.Indexed (ifind)
@@ -26,7 +27,7 @@ import Data.Maybe (fromJust)
 import Data.Vector.Sized qualified as V
 import GHC.IO (unsafePerformIO)
 import GHC.TypeNats (KnownNat, type (+))
-import Grid (Coord' (C), Grid, Grid' (G), GridF', origin, render, unwrap)
+import Grid (Coord', Grid, Grid' (G), GridF', origin, render, unwrap)
 import Linear (V2 (V2))
 
 newtype Robot = Robot (V2 Integer) -- represents its velocity
@@ -36,7 +37,7 @@ type Input n m = Grid' n m [Robot]
 
 -- move that wraps
 next :: (KnownNat n, KnownNat m) => Coord' n m -> Robot -> Coord' n m
-next (C (getFinite -> y1, getFinite -> x1)) (Robot (V2 y2 x2)) = C (modulo $ y1 + y2, modulo $ x1 + x2)
+next (getFinite -> y1, getFinite -> x1) (Robot (V2 y2 x2)) = (modulo $ y1 + y2, modulo $ x1 + x2)
 
 -- Step function: move robots and update the grid
 step :: forall n m. (KnownNat n, KnownNat m) => Input n m -> Input n m
@@ -59,10 +60,10 @@ splitIntoQuadrants (unwrap -> rows) =
    in G $
         store
           ( \case
-              C (0, 0) -> G $ store (\(C (y, x)) -> flip V.index x $ V.index topLeft y) origin
-              C (0, 1) -> G $ store (\(C (y, x)) -> flip V.index x $ V.index topRight y) origin
-              C (1, 0) -> G $ store (\(C (y, x)) -> flip V.index x $ V.index bottomLeft y) origin
-              C (1, 1) -> G $ store (\(C (y, x)) -> flip V.index x $ V.index bottomRight y) origin
+              (0, 0) -> G $ store (\(y, x) -> flip V.index x $ V.index topLeft y) origin
+              (0, 1) -> G $ store (\(y, x) -> flip V.index x $ V.index topRight y) origin
+              (1, 0) -> G $ store (\(y, x) -> flip V.index x $ V.index bottomLeft y) origin
+              (1, 1) -> G $ store (\(y, x) -> flip V.index x $ V.index bottomRight y) origin
           )
           origin
 
@@ -76,7 +77,7 @@ solution = product . fmap (sum . fmap length) . splitIntoQuadrants @n @m . (!! 1
 -- Calculate the variance of a list of Coord' n m
 varianceCoords :: (KnownNat n, KnownNat m) => Input n m -> (Double, Double)
 varianceCoords g =
-  let (xs, ys) = unzip [(fromIntegral y, fromIntegral x) | C (y, x) <- coords]
+  let (xs, ys) = unzip $ (fromIntegral *** fromIntegral) <$> coords
    in (variance xs, variance ys)
   where
     coords = fold $ extend (\g' -> [pos g' | not $ null (extract g')]) g
@@ -105,5 +106,5 @@ parser = G . (flip store origin . flip (Map.findWithDefault [])) <$> robots
     robots = fold <$> robot `sepBy` endOfLine
     robot =
       Map.singleton
-        <$> liftA2 (curry C) (string "p=" *> fmap finite decimal <* char ',') (fmap finite decimal)
+        <$> liftA2 (,) (string "p=" *> fmap finite decimal <* char ',') (fmap finite decimal)
         <*> liftA2 (\i j -> [Robot (V2 j i)]) (string " v=" *> signed decimal <* char ',') (signed decimal)
