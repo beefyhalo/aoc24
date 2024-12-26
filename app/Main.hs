@@ -12,7 +12,7 @@ import Grid (render)
 
 main :: IO ()
 main =
-  parseFromFile (parser @10 ) "input/day15.txt" >>= \case
+  parseFromFile (parser @10) "input/day15.txt" >>= \case
     Left err -> print err
     Right input -> putStr ("\n" ++ show input) >> putStrLn ("Solution:\n" ++ show (partTwo input))
   where

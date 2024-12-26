@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImportQualifiedPost #-}
@@ -21,20 +22,20 @@ import Control.Comonad.Representable.Store (ComonadStore, Store, StoreT (StoreT)
 import Data.Array.IArray (Array, array, (!))
 import Data.Coerce (coerce)
 import Data.Distributive (Distributive (distribute))
-import Data.Finite (Finite, getFinite, packFinite)
+import Data.Finite (Finite, getFinite, modulo, packFinite)
 import Data.Foldable (fold)
-import Data.Foldable.WithIndex (FoldableWithIndex (ifoldMap))
+import Data.Foldable.WithIndex (FoldableWithIndex (..), ifind)
 import Data.Functor.Compose (Compose (Compose))
 import Data.Functor.Rep (Representable (..), distributeRep)
+import Data.Functor.WithIndex (FunctorWithIndex (imap))
 import Data.List (unfoldr)
 import Data.Map.Strict qualified as Map
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, fromJust)
 import Data.Vector.Generic.Sized ()
 import Data.Vector.Sized qualified as V
 import GHC.Generics (Generic, Generic1)
 import GHC.TypeLits (KnownNat, Nat)
 import Linear (V2 (V2))
-import Prelude hiding (zipWith)
 
 type Coord n = Coord' n n
 
@@ -68,8 +69,8 @@ right = (`plus` east)
 plus :: (KnownNat n, KnownNat m) => Coord' n m -> V2 Integer -> Maybe (Coord' n m)
 plus (getFinite -> y1, getFinite -> x1) (V2 y2 x2) = liftA2 (,) (packFinite $ y1 + y2) (packFinite $ x1 + x2)
 
-zipCoord :: (KnownNat n, KnownNat m) => (Integer -> Integer -> Integer) -> Coord' n m -> Coord' n m -> Coord' n m
-zipCoord f (getFinite -> y1, getFinite -> x1) (getFinite -> y2, getFinite -> x2) = (fromIntegral $ f y1 y2, fromIntegral $ f x1 x2)
+plus' :: (KnownNat n, KnownNat m) => Coord' n m -> V2 Integer -> Coord' n m
+plus' (getFinite -> y1, getFinite -> x1) (V2 y2 x2) = (modulo $ y1 + y2, modulo $ x1 + x2)
 
 colines :: (KnownNat n, KnownNat m) => [Coord' n m] -> [Coord' n m]
 colines coords = concat [colinear x y | x <- coords, y <- coords, x /= y]
@@ -91,8 +92,28 @@ type GridF n = GridF' n n
 newtype GridF' (n :: Nat) (m :: Nat) a = GridF' {unGridF :: Compose (V.Vector n) (V.Vector m) a}
   deriving newtype (Functor, Foldable)
 
+-- | Vector package @since 1.6.0
+instance FunctorWithIndex (Finite n) (V.Vector n) where
+  {-# INLINEABLE imap #-}
+  imap = imap
+
+-- | Vector package @since 1.6.0
+instance FoldableWithIndex (Finite n) (V.Vector n) where
+  {-# INLINEABLE ifoldMap #-}
+  ifoldMap f = V.ifoldl (\acc ix x -> acc `mappend` f ix x) mempty
+  {-# INLINEABLE ifoldMap' #-}
+  ifoldMap' f = V.ifoldl' (\acc ix x -> acc `mappend` f ix x) mempty
+  {-# INLINEABLE ifoldr #-}
+  ifoldr = ifoldr
+  {-# INLINEABLE ifoldl #-}
+  ifoldl f = V.ifoldl (flip f)
+  {-# INLINEABLE ifoldr' #-}
+  ifoldr' = V.ifoldr'
+  {-# INLINEABLE ifoldl' #-}
+  ifoldl' f = V.ifoldl' (flip f)
+
 instance FoldableWithIndex (Coord' n m) (GridF' n m) where
-  ifoldMap f (GridF' g) = undefined -- ifoldMap f g
+  ifoldMap f (GridF' g) = ifoldMap f g
 
 instance (KnownNat n, KnownNat m) => Distributive (GridF' n m) where
   distribute = distributeRep
@@ -121,6 +142,18 @@ instance FoldableWithIndex (Coord' n m) (Grid' n m) where
 instance (KnownNat n, KnownNat m) => Comonad (Grid' n m) where
   extract (G g) = extract g
   duplicate (G g) = coerce (coerce <$> duplicate g)
+
+fromList :: (KnownNat n, KnownNat m) => [[a]] -> Grid' n m a
+fromList = fromList' (const . (origin ==))
+
+fromList' :: (KnownNat n, KnownNat m) => (Coord' n m -> a -> Bool) -> [[a]] -> Grid' n m a
+fromList' p = (\v -> fromVector' v (fst . fromJust $ ifind p (Compose v))) . fromJust . V.fromList . fmap (fromJust . V.fromList)
+
+fromVector :: (KnownNat n, KnownNat m) => V.Vector n (V.Vector m a) -> Grid' n m a
+fromVector = (`fromVector'` origin)
+
+fromVector' :: (KnownNat n, KnownNat m) => V.Vector n (V.Vector m a) -> Coord' n m -> Grid' n m a
+fromVector' v = G . store (uncurry (V.index . V.index v))
 
 fromArray :: (KnownNat n, KnownNat m) => Array (Int, Int) a -> Grid' n m a
 fromArray = (`fromArray'` origin)

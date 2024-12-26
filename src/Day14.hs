@@ -19,7 +19,7 @@ import Control.Comonad (extend, extract)
 import Control.Comonad.Representable.Store (peek, pos, store)
 import Control.Lens.Indexed (ifind)
 import Data.Attoparsec.ByteString.Char8 (Parser, char, decimal, endOfLine, sepBy, signed, string)
-import Data.Finite (finite, getFinite, modulo)
+import Data.Finite (finite)
 import Data.Foldable (fold, traverse_)
 import Data.Functor.Rep (Representable (tabulate))
 import Data.Map.Monoidal.Strict qualified as Map
@@ -27,7 +27,7 @@ import Data.Maybe (fromJust)
 import Data.Vector.Sized qualified as V
 import GHC.IO (unsafePerformIO)
 import GHC.TypeNats (KnownNat, type (+))
-import Grid (Coord', Grid, Grid' (G), GridF', origin, render, unwrap)
+import Grid (Coord', Grid, Grid' (G), GridF', fromVector, origin, plus', render, unwrap)
 import Linear (V2 (V2))
 
 newtype Robot = Robot (V2 Integer) -- represents its velocity
@@ -35,21 +35,17 @@ newtype Robot = Robot (V2 Integer) -- represents its velocity
 
 type Input n m = Grid' n m [Robot]
 
--- move that wraps
-next :: (KnownNat n, KnownNat m) => Coord' n m -> Robot -> Coord' n m
-next (getFinite -> y1, getFinite -> x1) (Robot (V2 y2 x2)) = (modulo $ y1 + y2, modulo $ x1 + x2)
-
--- Step function: move robots and update the grid
-step :: forall n m. (KnownNat n, KnownNat m) => Input n m -> Input n m
-step g =
-  let -- Get all current robots and their new positions
-      allRobots :: Map.MonoidalMap (Coord' n m) [Robot]
-      allRobots = fold $ tabulate @(GridF' n m) \c ->
-        Map.fromList [(newPos, [robot]) | robot <- peek c g, let newPos = next c robot]
-   in extend (\g' -> fold $ Map.lookup (pos g') allRobots) g
-
-walk :: (KnownNat n, KnownNat m) => Input n m -> [Input n m]
+walk :: forall n m. (KnownNat n, KnownNat m) => Input n m -> [Input n m]
 walk = iterate step
+  where
+    -- Step function: move robots and update the grid
+    step :: Input n m -> Input n m
+    step g =
+      let -- Get all current robots and their new positions
+          allRobots :: Map.MonoidalMap (Coord' n m) [Robot]
+          allRobots = fold $ tabulate @(GridF' n m) \c ->
+            Map.fromList [(newPos, [Robot robot]) | Robot robot <- peek c g, let newPos = plus' c robot]
+       in extend (\g' -> fold $ Map.lookup (pos g') allRobots) g
 
 splitIntoQuadrants :: (KnownNat n, KnownNat m) => Grid' (n + (1 + n)) (m + (1 + m)) a -> Grid 2 (Grid' n m a)
 splitIntoQuadrants (unwrap -> rows) =
@@ -60,10 +56,10 @@ splitIntoQuadrants (unwrap -> rows) =
    in G $
         store
           ( \case
-              (0, 0) -> G $ store (\(y, x) -> flip V.index x $ V.index topLeft y) origin
-              (0, 1) -> G $ store (\(y, x) -> flip V.index x $ V.index topRight y) origin
-              (1, 0) -> G $ store (\(y, x) -> flip V.index x $ V.index bottomLeft y) origin
-              (1, 1) -> G $ store (\(y, x) -> flip V.index x $ V.index bottomRight y) origin
+              (0, 0) -> fromVector topLeft
+              (0, 1) -> fromVector topRight
+              (1, 0) -> fromVector bottomLeft
+              (1, 1) -> fromVector bottomRight
           )
           origin
 
