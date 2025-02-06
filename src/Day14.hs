@@ -44,7 +44,7 @@ walk = iterate step
       let -- Get all current robots and their new positions
           allRobots :: Map.MonoidalMap (Coord' n m) [Robot]
           allRobots = fold $ tabulate @(GridF' n m) \c ->
-            Map.fromList [(newPos, [Robot robot]) | Robot robot <- peek c g, let newPos = plus' c robot]
+            Map.fromList [(newPos, [robot]) | robot@(Robot v) <- peek c g, let newPos = plus' c v]
        in extend (\g' -> fold $ Map.lookup (pos g') allRobots) g
 
 splitIntoQuadrants :: (KnownNat n, KnownNat m) => Grid' (n + (1 + n)) (m + (1 + m)) a -> Grid 2 (Grid' n m a)

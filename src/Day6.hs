@@ -9,7 +9,7 @@
 
 module Day6 (module Day6) where
 
-import Control.Arrow ((***))
+import Control.Arrow (Arrow ((&&&)), (***))
 import Control.Comonad.Store (ComonadStore (..))
 import Control.Monad (when)
 import Control.Monad.Loops (unfoldrM)
@@ -58,17 +58,13 @@ walk g = withGuard $ evalState (Set.fromList <$> path) north
     withGuard = Set.insert (pos g)
 
     path :: State (V2 Integer) [Coord n]
-    path = unfoldrM (fmap (fmap (\g' -> (pos g', g'))) . step) g
+    path = unfoldrM (fmap (fmap (pos &&& id)) . step) g
 
 solution :: forall n. (KnownNat n) => Input n -> Int
 solution g = length visited
   where
     visited = walk g
-
-    !_ = unsafePerformIO $ putStrLn $ "\n" ++ render renderSpace g
-      where
-        renderSpace i _ | Set.member i visited = "X"
-        renderSpace _ s = show s
+    !_ = unsafePerformIO $ putStrLn $ "\n" ++ render (\i s -> if Set.member i visited then "X" else show s) g
 
 partTwo :: forall n. (KnownNat n) => Input n -> Int
 partTwo = length . (`using` parList rpar) . filter detectLoop . withObstacles
